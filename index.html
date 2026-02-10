@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Central - Book an Appointment</title>
+    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0078d4, #005a9e);
+            color: #fff;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+
+        header h1 { font-size: 1.8rem; font-weight: 600; }
+        header p { margin-top: 0.4rem; opacity: 0.9; font-size: 1rem; }
+
+        main {
+            max-width: 680px;
+            margin: -2rem auto 3rem;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 2rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: #0078d4;
+        }
+
+        .form-group { margin-bottom: 1.25rem; }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            font-size: 0.9rem;
+        }
+
+        .required::after {
+            content: ' *';
+            color: #d13438;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 1.5px solid #d2d2d7;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #0078d4;
+            box-shadow: 0 0 0 3px rgba(0,120,212,0.15);
+        }
+
+        textarea { resize: vertical; min-height: 100px; }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Appointment type cards */
+        .type-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .type-option { position: relative; }
+
+        .type-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .type-option label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 1rem 0.5rem;
+            border: 2px solid #d2d2d7;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .type-option label:hover {
+            border-color: #0078d4;
+            background: #f5faff;
+        }
+
+        .type-option input:checked + label {
+            border-color: #0078d4;
+            background: #e8f2fc;
+            color: #005a9e;
+            font-weight: 600;
+        }
+
+        .type-icon { font-size: 1.6rem; }
+
+        .btn {
+            display: inline-block;
+            padding: 0.65rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover { background: #005a9e; }
+        .btn-primary:disabled { background: #a0a0a0; cursor: not-allowed; }
+
+        .btn-danger { background: #d13438; color: #fff; }
+        .btn-danger:hover { background: #a4262c; }
+
+        .btn-submit {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background: #0078d4;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        .btn-submit:hover { background: #005a9e; }
+        .btn-submit:active { transform: scale(0.99); }
+
+        /* Connection status */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .status-bar.connected {
+            background: #dff6dd;
+            color: #107c10;
+        }
+
+        .status-bar.disconnected {
+            background: #fed9cc;
+            color: #d13438;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .connected .status-dot { background: #107c10; }
+        .disconnected .status-dot { background: #d13438; }
+
+        .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Setup instructions */
+        details {
+            margin-bottom: 1.25rem;
+        }
+
+        details summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #0078d4;
+            font-size: 0.95rem;
+            padding: 0.5rem 0;
+        }
+
+        details summary:hover { text-decoration: underline; }
+
+        .instructions {
+            margin-top: 0.75rem;
+            font-size: 0.88rem;
+            line-height: 1.7;
+            color: #444;
+        }
+
+        .instructions ol { padding-left: 1.25rem; }
+        .instructions li { margin-bottom: 0.5rem; }
+        .instructions code {
+            background: #f0f2f5;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.2rem;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #d2d2d7;
+            border-top-color: #0078d4;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-msg {
+            font-size: 0.9rem;
+            color: #555;
+            padding: 0.5rem 0;
+        }
+
+        /* Confirmation overlay */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 1rem;
+        }
+
+        .overlay.visible { display: flex; }
+
+        .confirmation {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2.5rem 2rem;
+            text-align: center;
+            max-width: 460px;
+            width: 100%;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        }
+
+        .confirmation .check {
+            width: 64px;
+            height: 64px;
+            background: #dff6dd;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2rem;
+        }
+
+        .confirmation h2 { color: #107c10; margin-bottom: 0.5rem; }
+        .confirmation p { color: #555; margin-bottom: 0.4rem; font-size: 0.95rem; }
+
+        .summary {
+            text-align: left;
+            background: #f9f9fb;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .summary strong { color: #1a1a2e; }
+
+        .btn-close {
+            padding: 0.6rem 2rem;
+            background: #0078d4;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+
+        .btn-close:hover { background: #005a9e; }
+
+        .error-msg {
+            color: #d13438;
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .alert-error {
+            background: #fed9cc;
+            color: #a4262c;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .hidden { display: none !important; }
+
+        @media (max-width: 520px) {
+            .row, .row-3 { grid-template-columns: 1fr; }
+            .type-options { grid-template-columns: 1fr; }
+            header h1 { font-size: 1.4rem; }
+            .btn-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Business Central Appointment Booking</h1>
+    <p>Schedule a meeting with one of our vendors</p>
+</header>
+
+<main>
+
+    <!-- Setup Instructions -->
+    <div class="card">
+        <details id="setupDetails">
+            <summary>Azure AD App Registration Setup Instructions</summary>
+            <div class="instructions">
+                <p>To connect this page to your Business Central environment, you need an Azure AD (Entra ID) app registration:</p>
+                <ol>
+                    <li>Go to <strong>portal.azure.com</strong> &gt; <strong>Microsoft Entra ID</strong> &gt; <strong>App registrations</strong> &gt; <strong>New registration</strong></li>
+                    <li>Name it (e.g. <code>BC Booking App</code>), set <strong>Supported account types</strong> to <em>"Accounts in this organizational directory only"</em></li>
+                    <li>Under <strong>Redirect URI</strong>, choose <strong>Single-page application (SPA)</strong> and enter the URL where this page is hosted (e.g. <code>https://yourusername.github.io/BookingWebsite/</code>)</li>
+                    <li>After creation, copy the <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong> from the Overview page</li>
+                    <li>Go to <strong>API permissions</strong> &gt; <strong>Add a permission</strong> &gt; <strong>Dynamics 365 Business Central</strong> &gt; <strong>Delegated permissions</strong> &gt; check <code>user_impersonation</code> &gt; <strong>Add permissions</strong></li>
+                    <li>Click <strong>Grant admin consent</strong> for your organization</li>
+                </ol>
+                <p>Then enter your <strong>Client ID</strong>, <strong>Tenant ID</strong>, and <strong>Environment Name</strong> below and click <strong>Connect</strong>.</p>
+            </div>
+        </details>
+    </div>
+
+    <!-- Connection Card -->
+    <div class="card" id="connectCard">
+        <h2>Connect to Business Central</h2>
+
+        <div class="alert-error" id="connectError"></div>
+
+        <div id="statusBar" class="status-bar disconnected">
+            <span class="status-dot"></span>
+            <span id="statusText">Not connected</span>
+        </div>
+
+        <div id="connectFields">
+            <div class="row-3">
+                <div class="form-group">
+                    <label for="clientId">Client ID</label>
+                    <input type="text" id="clientId" placeholder="xxxxxxxx-xxxx-...">
+                </div>
+                <div class="form-group">
+                    <label for="tenantId">Tenant ID</label>
+                    <input type="text" id="tenantId" placeholder="xxxxxxxx-xxxx-...">
+                </div>
+                <div class="form-group">
+                    <label for="envName">Environment</label>
+                    <input type="text" id="envName" placeholder="production" value="Development27">
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="companyGroup">
+                <label for="company">Company</label>
+                <select id="company">
+                    <option value="">-- Select a Company --</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btnConnect">Connect</button>
+            <button class="btn btn-danger hidden" id="btnDisconnect">Disconnect</button>
+        </div>
+    </div>
+
+    <!-- Booking Form (hidden until connected + company selected) -->
+    <div class="card hidden" id="bookingCard">
+        <h2>Book Your Appointment</h2>
+        <form id="bookingForm" novalidate>
+
+            <div class="form-group">
+                <label class="required" for="customer">Customer</label>
+                <select id="customer" required>
+                    <option value="">-- Select a Customer --</option>
+                </select>
+                <div class="error-msg" id="customerError">Please select a customer.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="required" for="vendor">Vendor</label>
+                <select id="vendor" required>
+                    <option value="">-- Select a Vendor --</option>
+                </select>
+                <div class="error-msg" id="vendorError">Please select a vendor.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="required">Appointment Type</label>
+                <div class="type-options">
+                    <div class="type-option">
+                        <input type="radio" id="typeInPerson" name="appointmentType" value="In Person" required>
+                        <label for="typeInPerson">
+                            <span class="type-icon">&#128101;</span>
+                            In Person
+                        </label>
+                    </div>
+                    <div class="type-option">
+                        <input type="radio" id="typeZoom" name="appointmentType" value="Zoom">
+                        <label for="typeZoom">
+                            <span class="type-icon">&#128249;</span>
+                            Zoom
+                        </label>
+                    </div>
+                    <div class="type-option">
+                        <input type="radio" id="typePhone" name="appointmentType" value="Phone Call">
+                        <label for="typePhone">
+                            <span class="type-icon">&#128222;</span>
+                            Phone Call
+                        </label>
+                    </div>
+                </div>
+                <div class="error-msg" id="appointmentTypeError">Please select an appointment type.</div>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label class="required" for="date">Date</label>
+                    <input type="date" id="date" required>
+                    <div class="error-msg" id="dateError">Please select a future date.</div>
+                </div>
+                <div class="form-group">
+                    <label class="required" for="time">Time</label>
+                    <input type="time" id="time" required>
+                    <div class="error-msg" id="timeError">Please select a time.</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" placeholder="Describe the purpose of your appointment..."></textarea>
+            </div>
+
+            <button type="submit" class="btn-submit">Book Appointment</button>
+        </form>
+    </div>
+
+</main>
+
+<!-- Confirmation modal -->
+<div class="overlay" id="overlay">
+    <div class="confirmation">
+        <div class="check">&#10003;</div>
+        <h2>Appointment Booked!</h2>
+        <p>Your appointment has been submitted successfully.</p>
+        <div class="summary" id="summary"></div>
+        <button class="btn-close" id="btnClose">Close</button>
+    </div>
+</div>
+
+<script>
+(function () {
+    // ── DOM refs ──
+    const btnConnect    = document.getElementById('btnConnect');
+    const btnDisconnect = document.getElementById('btnDisconnect');
+    const connectError  = document.getElementById('connectError');
+    const statusBar     = document.getElementById('statusBar');
+    const statusText    = document.getElementById('statusText');
+    const companyGroup  = document.getElementById('companyGroup');
+    const companySelect = document.getElementById('company');
+    const bookingCard   = document.getElementById('bookingCard');
+    const form          = document.getElementById('bookingForm');
+    const overlay       = document.getElementById('overlay');
+    const summary       = document.getElementById('summary');
+    const btnClose      = document.getElementById('btnClose');
+    const dateInput     = document.getElementById('date');
+
+    const clientIdInput = document.getElementById('clientId');
+    const tenantIdInput = document.getElementById('tenantId');
+    const envNameInput  = document.getElementById('envName');
+
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.setAttribute('min', today);
+
+    let msalInstance = null;
+    let accessToken  = null;
+    let bcBaseUrl    = '';
+
+    // ── Restore saved settings from localStorage ──
+    const saved = JSON.parse(localStorage.getItem('bcBookingSettings') || '{}');
+    if (saved.clientId) clientIdInput.value = saved.clientId;
+    if (saved.tenantId) tenantIdInput.value = saved.tenantId;
+    if (saved.envName)  envNameInput.value  = saved.envName;
+
+    // ── Helpers ──
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function showConnectError(msg) {
+        connectError.textContent = msg;
+        connectError.style.display = 'block';
+    }
+
+    function hideConnectError() {
+        connectError.style.display = 'none';
+    }
+
+    function setConnected(userName) {
+        statusBar.className = 'status-bar connected';
+        statusText.textContent = 'Connected as ' + userName;
+        btnConnect.classList.add('hidden');
+        btnDisconnect.classList.remove('hidden');
+        clientIdInput.disabled = true;
+        tenantIdInput.disabled = true;
+        envNameInput.disabled  = true;
+    }
+
+    function setDisconnected() {
+        statusBar.className = 'status-bar disconnected';
+        statusText.textContent = 'Not connected';
+        btnConnect.classList.remove('hidden');
+        btnDisconnect.classList.add('hidden');
+        clientIdInput.disabled = false;
+        tenantIdInput.disabled = false;
+        envNameInput.disabled  = false;
+        companyGroup.classList.add('hidden');
+        bookingCard.classList.add('hidden');
+        companySelect.innerHTML = '<option value="">-- Select a Company --</option>';
+        accessToken = null;
+        msalInstance = null;
+    }
+
+    function showError(id) {
+        document.getElementById(id).style.display = 'block';
+    }
+
+    function clearErrors() {
+        document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+    }
+
+    async function bcApiFetch(path) {
+        const url = bcBaseUrl + path;
+        const resp = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + accessToken }
+        });
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error('API error ' + resp.status + ': ' + text);
+        }
+        return resp.json();
+    }
+
+    function populateSelect(selectEl, items, displayField, placeholder) {
+        selectEl.innerHTML = '<option value="">' + placeholder + '</option>';
+        items.forEach(function (item) {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item[displayField];
+            selectEl.appendChild(opt);
+        });
+    }
+
+    // ── Connect ──
+    btnConnect.addEventListener('click', async function () {
+        hideConnectError();
+
+        const clientId = clientIdInput.value.trim();
+        const tenantId = tenantIdInput.value.trim();
+        const envName  = envNameInput.value.trim() || 'production';
+
+        if (!clientId || !tenantId) {
+            showConnectError('Please enter both Client ID and Tenant ID.');
+            return;
+        }
+
+        // Save settings
+        localStorage.setItem('bcBookingSettings', JSON.stringify({ clientId, tenantId, envName }));
+
+        bcBaseUrl = 'https://api.businesscentral.dynamics.com/v2.0/' + tenantId + '/' + envName + '/api/v2.0';
+
+        btnConnect.disabled = true;
+        btnConnect.innerHTML = 'Connecting<span class="spinner"></span>';
+
+        try {
+            // Initialize MSAL
+            const msalConfig = {
+                auth: {
+                    clientId: clientId,
+                    authority: 'https://login.microsoftonline.com/' + tenantId,
+                    redirectUri: window.location.origin + window.location.pathname
+                },
+                cache: {
+                    cacheLocation: 'localStorage'
+                }
+            };
+
+            msalInstance = new msal.PublicClientApplication(msalConfig);
+
+            const loginRequest = {
+                scopes: ['https://api.businesscentral.dynamics.com/.default']
+            };
+
+            // Try silent login first (existing session), fall back to popup
+            let tokenResponse;
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                try {
+                    tokenResponse = await msalInstance.acquireTokenSilent({
+                        ...loginRequest,
+                        account: accounts[0]
+                    });
+                } catch (e) {
+                    tokenResponse = await msalInstance.loginPopup(loginRequest);
+                }
+            } else {
+                tokenResponse = await msalInstance.loginPopup(loginRequest);
+            }
+
+            accessToken = tokenResponse.accessToken;
+            const userName = tokenResponse.account.name || tokenResponse.account.username;
+
+            setConnected(userName);
+
+            // Fetch companies
+            const companiesData = await bcApiFetch('/companies');
+            const companies = companiesData.value;
+
+            if (companies.length === 0) {
+                showConnectError('No companies found in this environment.');
+                return;
+            }
+
+            populateSelect(companySelect, companies, 'name', '-- Select a Company --');
+            companyGroup.classList.remove('hidden');
+
+            // Auto-select if only one company
+            if (companies.length === 1) {
+                companySelect.value = companies[0].id;
+                companySelect.dispatchEvent(new Event('change'));
+            }
+
+        } catch (err) {
+            console.error(err);
+            showConnectError('Connection failed: ' + err.message);
+            setDisconnected();
+        } finally {
+            btnConnect.disabled = false;
+            btnConnect.textContent = 'Connect';
+        }
+    });
+
+    // ── Disconnect ──
+    btnDisconnect.addEventListener('click', function () {
+        if (msalInstance) {
+            const account = msalInstance.getAllAccounts()[0];
+            if (account) {
+                msalInstance.logoutPopup({ account: account }).catch(function () {});
+            }
+        }
+        setDisconnected();
+    });
+
+    // ── Company selection → load customers & vendors ──
+    companySelect.addEventListener('change', async function () {
+        const companyId = companySelect.value;
+        bookingCard.classList.add('hidden');
+        if (!companyId) return;
+
+        hideConnectError();
+
+        try {
+            // Refresh token silently
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                const tokenResponse = await msalInstance.acquireTokenSilent({
+                    scopes: ['https://api.businesscentral.dynamics.com/.default'],
+                    account: accounts[0]
+                });
+                accessToken = tokenResponse.accessToken;
+            }
+
+            // Fetch customers and vendors in parallel
+            const [customersData, vendorsData] = await Promise.all([
+                bcApiFetch('/companies(' + companyId + ')/customers?$select=id,displayName,number&$orderby=displayName'),
+                bcApiFetch('/companies(' + companyId + ')/vendors?$select=id,displayName,number&$orderby=displayName')
+            ]);
+
+            populateSelect(
+                document.getElementById('customer'),
+                customersData.value,
+                'displayName',
+                '-- Select a Customer --'
+            );
+
+            populateSelect(
+                document.getElementById('vendor'),
+                vendorsData.value,
+                'displayName',
+                '-- Select a Vendor --'
+            );
+
+            bookingCard.classList.remove('hidden');
+
+        } catch (err) {
+            console.error(err);
+            showConnectError('Failed to load data: ' + err.message);
+        }
+    });
+
+    // ── Booking form submit ──
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErrors();
+
+        const customerSelect = document.getElementById('customer');
+        const vendorSelect   = document.getElementById('vendor');
+        const customer       = customerSelect.value;
+        const vendor         = vendorSelect.value;
+        const type           = document.querySelector('input[name="appointmentType"]:checked');
+        const date           = dateInput.value;
+        const time           = document.getElementById('time').value;
+        const desc           = document.getElementById('description').value.trim();
+
+        let valid = true;
+
+        if (!customer) { showError('customerError'); valid = false; }
+        if (!vendor)   { showError('vendorError'); valid = false; }
+        if (!type)     { showError('appointmentTypeError'); valid = false; }
+        if (!date || date < today) { showError('dateError'); valid = false; }
+        if (!time)     { showError('timeError'); valid = false; }
+
+        if (!valid) return;
+
+        // Get display names from selected options
+        const customerName = customerSelect.options[customerSelect.selectedIndex].text;
+        const vendorName   = vendorSelect.options[vendorSelect.selectedIndex].text;
+
+        // Format date for display
+        const displayDate = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        // Format time for display
+        const [h, m] = time.split(':');
+        const ampm = +h >= 12 ? 'PM' : 'AM';
+        const displayTime = ((+h % 12) || 12) + ':' + m + ' ' + ampm;
+
+        summary.innerHTML =
+            '<strong>Customer:</strong> ' + escapeHtml(customerName) + '<br>' +
+            '<strong>Vendor:</strong> ' + escapeHtml(vendorName) + '<br>' +
+            '<strong>Type:</strong> ' + escapeHtml(type.value) + '<br>' +
+            '<strong>Date:</strong> ' + escapeHtml(displayDate) + '<br>' +
+            '<strong>Time:</strong> ' + escapeHtml(displayTime) +
+            (desc ? '<br><strong>Description:</strong> ' + escapeHtml(desc) : '');
+
+        overlay.classList.add('visible');
+    });
+
+    // ── Close confirmation ──
+    btnClose.addEventListener('click', function () {
+        overlay.classList.remove('visible');
+        form.reset();
+        clearErrors();
+    });
+
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) {
+            overlay.classList.remove('visible');
+            form.reset();
+            clearErrors();
+        }
+    });
+
+})();
+</script>
+
+</body>
+</html>
