@@ -351,6 +351,109 @@
             display: none;
         }
 
+        /* Calendar */
+        .calendar {
+            border: 1.5px solid #d2d2d7;
+            border-radius: 8px;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .cal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0078d4;
+            color: #fff;
+            padding: 0.6rem 0.75rem;
+        }
+
+        .cal-header button {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            line-height: 1;
+        }
+
+        .cal-header button:hover { background: rgba(255,255,255,0.2); }
+
+        .cal-month-year {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0;
+            padding: 0.5rem;
+        }
+
+        .cal-dow {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #888;
+            padding: 0.3rem 0;
+        }
+
+        .cal-day {
+            text-align: center;
+            padding: 0.5rem 0.25rem;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .cal-day:hover:not(.cal-disabled):not(.cal-empty) {
+            background: #e8f2fc;
+            color: #0078d4;
+        }
+
+        .cal-day.cal-selected {
+            background: #0078d4;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .cal-day.cal-today:not(.cal-selected) {
+            border: 2px solid #0078d4;
+            font-weight: 600;
+        }
+
+        .cal-day.cal-disabled {
+            color: #ccc;
+            cursor: default;
+        }
+
+        .cal-day.cal-empty {
+            cursor: default;
+        }
+
+        .cal-selected-display {
+            text-align: center;
+            padding: 0.4rem;
+            font-size: 0.85rem;
+            color: #0078d4;
+            font-weight: 600;
+            border-top: 1px solid #eee;
+            min-height: 2rem;
+        }
+
+        .time-picker-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .time-picker-group select {
+            width: 100%;
+        }
+
         .hidden { display: none !important; }
 
         @media (max-width: 520px) {
@@ -481,13 +584,24 @@
 
             <div class="row">
                 <div class="form-group">
-                    <label class="required" for="date">Date</label>
-                    <input type="date" id="date" required>
-                    <div class="error-msg" id="dateError">Please select a future date.</div>
+                    <label class="required">Date</label>
+                    <input type="hidden" id="date">
+                    <div class="calendar" id="calendar">
+                        <div class="cal-header">
+                            <button type="button" id="calPrev">&#9664;</button>
+                            <span class="cal-month-year" id="calMonthYear"></span>
+                            <button type="button" id="calNext">&#9654;</button>
+                        </div>
+                        <div class="cal-grid" id="calGrid"></div>
+                        <div class="cal-selected-display" id="calDisplay">No date selected</div>
+                    </div>
+                    <div class="error-msg" id="dateError">Please select a date.</div>
                 </div>
-                <div class="form-group">
+                <div class="form-group time-picker-group">
                     <label class="required" for="time">Time</label>
-                    <input type="time" id="time" required>
+                    <select id="time">
+                        <option value="">-- Select a Time --</option>
+                    </select>
                     <div class="error-msg" id="timeError">Please select a time.</div>
                 </div>
             </div>
@@ -544,8 +658,112 @@
     const tenantIdInput = document.getElementById('tenantId');
     const envNameInput  = document.getElementById('envName');
 
-    const today = new Date().toISOString().split('T')[0];
-    dateInput.setAttribute('min', today);
+    const todayDate = new Date();
+    todayDate.setHours(0,0,0,0);
+    const today = todayDate.toISOString().split('T')[0];
+
+    // ── Time slot dropdown ──
+    const timeSelect = document.getElementById('time');
+    for (let h = 8; h <= 17; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            if (h === 17 && m > 0) break;
+            const val = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const dh = ((h % 12) || 12);
+            const label = dh + ':' + String(m).padStart(2,'0') + ' ' + ampm;
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            timeSelect.appendChild(opt);
+        }
+    }
+
+    // ── Calendar widget ──
+    let calViewYear  = todayDate.getFullYear();
+    let calViewMonth = todayDate.getMonth();
+    let selectedDate = null;
+
+    const calGrid     = document.getElementById('calGrid');
+    const calMonthYear = document.getElementById('calMonthYear');
+    const calDisplay  = document.getElementById('calDisplay');
+    const calPrev     = document.getElementById('calPrev');
+    const calNext     = document.getElementById('calNext');
+
+    function renderCalendar() {
+        const months = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+        calMonthYear.textContent = months[calViewMonth] + ' ' + calViewYear;
+
+        calGrid.innerHTML = '';
+        const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        dows.forEach(function(d) {
+            const el = document.createElement('div');
+            el.className = 'cal-dow';
+            el.textContent = d;
+            calGrid.appendChild(el);
+        });
+
+        const firstDay = new Date(calViewYear, calViewMonth, 1).getDay();
+        const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            const el = document.createElement('div');
+            el.className = 'cal-day cal-empty';
+            calGrid.appendChild(el);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const el = document.createElement('div');
+            el.className = 'cal-day';
+            el.textContent = d;
+
+            const cellDate = new Date(calViewYear, calViewMonth, d);
+            const cellStr = calViewYear + '-' + String(calViewMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+
+            if (cellDate < todayDate) {
+                el.classList.add('cal-disabled');
+            } else {
+                el.addEventListener('click', function() {
+                    selectedDate = cellStr;
+                    dateInput.value = cellStr;
+                    calDisplay.textContent = cellDate.toLocaleDateString('en-US', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                    });
+                    renderCalendar();
+                });
+            }
+
+            if (cellDate.toDateString() === todayDate.toDateString()) {
+                el.classList.add('cal-today');
+            }
+
+            if (selectedDate === cellStr) {
+                el.classList.add('cal-selected');
+            }
+
+            calGrid.appendChild(el);
+        }
+    }
+
+    calPrev.addEventListener('click', function() {
+        calViewMonth--;
+        if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+        // Don't go before current month
+        if (calViewYear < todayDate.getFullYear() ||
+            (calViewYear === todayDate.getFullYear() && calViewMonth < todayDate.getMonth())) {
+            calViewMonth = todayDate.getMonth();
+            calViewYear = todayDate.getFullYear();
+        }
+        renderCalendar();
+    });
+
+    calNext.addEventListener('click', function() {
+        calViewMonth++;
+        if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+        renderCalendar();
+    });
+
+    renderCalendar();
 
     let msalInstance = null;
     let accessToken  = null;
@@ -786,7 +1004,7 @@
         const vendor         = vendorSelect.value;
         const type           = document.querySelector('input[name="appointmentType"]:checked');
         const date           = dateInput.value;
-        const time           = document.getElementById('time').value;
+        const time           = timeSelect.value;
         const desc           = document.getElementById('description').value.trim();
 
         let valid = true;
@@ -825,17 +1043,26 @@
     });
 
     // ── Close confirmation ──
+    function resetForm() {
+        form.reset();
+        selectedDate = null;
+        dateInput.value = '';
+        calDisplay.textContent = 'No date selected';
+        calViewYear = todayDate.getFullYear();
+        calViewMonth = todayDate.getMonth();
+        renderCalendar();
+        clearErrors();
+    }
+
     btnClose.addEventListener('click', function () {
         overlay.classList.remove('visible');
-        form.reset();
-        clearErrors();
+        resetForm();
     });
 
     overlay.addEventListener('click', function (e) {
         if (e.target === overlay) {
             overlay.classList.remove('visible');
-            form.reset();
-            clearErrors();
+            resetForm();
         }
     });
 
